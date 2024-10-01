@@ -16,6 +16,8 @@ EXTRA = [
     'ISO 800', 'dslr', 'photo', 'realistic'
 ]
 
+DEVICE = "mps"
+
 DIMS = (512, 512)
 
 
@@ -37,13 +39,13 @@ class Pipeline:
         )
         pipe.safety_checker = \
             lambda images, clip_input: (images, [False] * len(images))
-        pipe = pipe.to("mps")
+        pipe = pipe.to(DEVICE)
         self._pipe = pipe
 
         self._caption = tpipeline(
             "image-to-text",
             model="Salesforce/blip-image-captioning-large",
-            device="mps"
+            device=DEVICE
         )
 
         # random parameters
