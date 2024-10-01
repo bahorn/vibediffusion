@@ -7,8 +7,11 @@ import torch
 from diffusers.utils import load_image
 from PIL import ImageEnhance, Image
 
+# Some defaults
+
 COUNT = 8
 STEPS = 4
+ZOOM = 1.001
 
 EXTRA = [
     'sunset', 'getting dark', 'detailed', 'high detail', 'fine details',
@@ -17,7 +20,6 @@ EXTRA = [
 ]
 
 DEVICE = "mps"
-
 DIMS = (512, 512)
 
 
@@ -30,7 +32,7 @@ def zoom_at(img, x, y, zoom):
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, zoom, device=DEVICE):
         pipe = AutoPipelineForImage2Image.from_pretrained(
             "stabilityai/sdxl-turbo",
             torch_dtype=torch.float16,
@@ -39,18 +41,18 @@ class Pipeline:
         )
         pipe.safety_checker = \
             lambda images, clip_input: (images, [False] * len(images))
-        pipe = pipe.to(DEVICE)
+        pipe = pipe.to(device)
         self._pipe = pipe
 
         self._caption = tpipeline(
             "image-to-text",
             model="Salesforce/blip-image-captioning-large",
-            device=DEVICE
+            device=device
         )
 
         # random parameters
         self._steps = STEPS
-        self._zoom = 1.01
+        self._zoom = zoom
         self._sharpness = 1.0005
         self._contrast = 1.0005
         self._color = 1.0005
@@ -94,10 +96,10 @@ def live_display(p, image):
         time.sleep(0.1)
 
 
-def batch(p, image):
+def batch(p, image, count):
     images = [image]
 
-    for i in range(COUNT):
+    for i in range(count):
         image = p.step(image)
         images.append(image)
 
@@ -114,17 +116,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('filename')
     parser.add_argument('--live', action='store_true')
+    parser.add_argument('--zoom', type=float, default=ZOOM)
+    parser.add_argument('--count', type=int, default=COUNT)
+    parser.add_argument('--device', default=DEVICE)
 
     args = parser.parse_args()
 
     image = load_image(args.filename).resize(DIMS)
 
-    p = Pipeline()
+    p = Pipeline(args.zoom, args.device)
 
     if args.live:
         live_display(p, image)
     else:
-        batch(p, image)
+        batch(p, image, args.count)
 
 
 if __name__ == "__main__":
