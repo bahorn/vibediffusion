@@ -7,6 +7,10 @@ from PIL import ImageEnhance, Image
 from consts import DEVICE, EXTRA, DIMS, STEPS
 
 
+def wrap(prompts, weight):
+    return list(map(lambda x: f'({x}:{float(weight)})', prompts))
+
+
 def zoom_at(img, x, y, zoom):
     w, h = img.size
     zoom2 = zoom * 2
@@ -38,7 +42,7 @@ class Pipeline:
         self._steps = STEPS
         self._zoom = zoom
         self._sharpness = 1.0005
-        self._contrast = 1.0005
+        self._contrast = 1.0000
         self._color = 1.0005
 
     def step(self, image, addition=[]):
@@ -46,7 +50,7 @@ class Pipeline:
         strength = 1 / steps
 
         prompt = self._caption(image)[0]['generated_text']
-        prompt = [prompt + ', ' + ', '.join(addition + EXTRA)]
+        prompt = ', '.join(wrap([prompt], 1.2) + addition + EXTRA)
         print(prompt)
 
         if self._zoom != 1.0:
@@ -74,7 +78,7 @@ class LiveDisplay:
         self._im = ax.imshow(self._image)
         plt.show(block=False)
         self._fig.canvas.draw()
-        plt.pause(0.01)
+        plt.pause(0.1)
         self._p = p
 
     def step(self, prompt=[]):
@@ -82,7 +86,7 @@ class LiveDisplay:
 
         self._im.set_data(self._image)
         self._fig.canvas.draw()
-        plt.pause(0.01)
+        plt.pause(0.1)
         time.sleep(0.1)
 
 
