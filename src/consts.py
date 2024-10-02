@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-ZOOM = 1.1
+ZOOM = 1.025
 COUNT = 8
 STEPS = 2
 
@@ -12,7 +12,7 @@ BASE = [
     'ISO 800', 'dslr', 'photo', 'realistic'
 ]
 
-BASE = []
+BASE = ["View of a village in the mountains"]
 
 DIRECTION = []
 EXTRA = DIRECTION + BASE

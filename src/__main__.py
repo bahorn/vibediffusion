@@ -1,5 +1,6 @@
 import argparse
 from genthing import Pipeline, live_display, batch
+from randomwalk import random_walk
 from sentiment import live_emotion
 from diffusers.utils import load_image
 from consts import ZOOM, COUNT, DEVICE, DIMS
@@ -26,6 +27,8 @@ def main():
             batch(p, image, args.count)
         case 'emotion':
             live_emotion(p, image)
+        case 'random-walk':
+            random_walk(p, image, args.count)
         case _:
             raise Exception('unknown command')
 

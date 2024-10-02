@@ -96,11 +96,11 @@ def live_display(p, image):
         ld.step()
 
 
-def batch(p, image, count):
+def batch(p, image, count, prompt_hook=lambda: []):
     images = [image]
 
     for i in range(count):
-        image = p.step(image)
+        image = p.step(image, addition=prompt_hook())
         images.append(image)
 
     images[0].save(
