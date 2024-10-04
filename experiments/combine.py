@@ -1,6 +1,7 @@
 """
 An idea, but didn't really work.
 """
+import os
 import sys
 import math
 import cv2
@@ -16,11 +17,17 @@ WIDTH = 512
 HEIGHT = 512
 
 COUNT = 4
+FRAME_COUNT = 32
 
-SIZE = int(512 / math.sqrt(COUNT))
-GRID_SIZE = int(512 / SIZE)
+OUT_DIM = 512
 
-EXTRA = ", (anime)2.0, (studio ghibli)2.0, (green)2.0"
+scale = int(OUT_DIM / int(WIDTH / math.sqrt(COUNT)))
+
+SIZE = int(WIDTH / math.sqrt(COUNT))
+GRID_SIZE = int(WIDTH / SIZE)
+
+STRENGTH = 0.3333
+EXTRA = ", (anime)0.8, (studio ghibli)0.8, (green)0.8"
 
 
 def to_numpy(img):
@@ -76,25 +83,39 @@ def cut(image):
     return images
 
 
-def annotate(frames):
-    # print(cv2.getBuildInformation())
-    grid_image = create_image_grid(frames)
+class Annotater:
+    def __init__(self):
+        self.captioner = tpipeline(
+            "image-to-text",
+            model="Salesforce/blip-image-captioning-large",
+            device="mps"
+        )
 
-    # return "a large group of blue and white planets" + EXTRA, grid_image
+        self._description = None
 
-    captioner = tpipeline(
-        "image-to-text",
-        model="Salesforce/blip-image-captioning-base",
-        device="mps"
-    )
+    def annotate(self, frames):
+        grid_image = create_image_grid(frames)
+        if self._description is None:
+            prompt = self.captioner(
+                grid_image,
+            )[0]['generated_text']
+            self._description = prompt
 
-    prompt = captioner(grid_image)[0]['generated_text']
+        prompt = self._description
 
-    # do an img2img step now.
-    prompt = prompt + EXTRA
-    print(prompt)
+        # do an img2img step now.
+        prompt = f'({prompt})2.0' + EXTRA
+        print(prompt)
 
-    return prompt, grid_image
+        return prompt, grid_image
+
+
+class MockScale:
+    def __init__(self):
+        pass
+
+    def upsample(self, image):
+        return image
 
 
 class Batcher:
@@ -120,7 +141,7 @@ class Batcher:
 
     def step(self, prompt, image):
         # do an img2img step now.
-        strength = 0.5
+        strength = STRENGTH
 
         first = self.pipe(
             image=image,
@@ -141,6 +162,8 @@ class Batcher:
 def main():
     # Read a batch of frames from
     cap = cv2.VideoCapture(sys.argv[1])
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(fps)
     images = []
 
     to_process = []
@@ -149,8 +172,10 @@ def main():
 
     count = 0
 
+    annotater = Annotater()
+
     while cap.isOpened():
-        if count >= 16:
+        if count >= FRAME_COUNT:
             break
 
         ret, frame = cap.read()
@@ -158,12 +183,12 @@ def main():
         frames.append(frame)
 
         if len(frames) >= COUNT:
-            to_process.append(annotate(frames))
+            to_process.append(annotater.annotate(frames))
             frames = []
         count += 1
 
     if len(frames) > 0:
-        to_process.append(annotate(frames))
+        to_process.append(annotater.annotate(frames))
 
     frames = []
 
@@ -174,27 +199,26 @@ def main():
 
     print('upscaling')
 
-    sr = cv2.dnn_superres.DnnSuperResImpl_create()
-    path = "LapSRN_x8.pb"
-    sr.readModel(path)
-    sr.setModel("lapsrn", 8)
+    sr = MockScale()
 
-    sr.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-    sr.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL_FP16)
+    if scale > 1.0:
+        sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        path = f"LapSRN_x{scale}.pb"
+        sr.readModel(path)
+        sr.setModel("lapsrn", scale)
 
-    res = []
+        sr.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        sr.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL_FP16)
 
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter('output.avi', fourcc, fps, (OUT_DIM, OUT_DIM))
     for image in tqdm(images):
-        result = sr.upsample(to_numpy(image))
-        res.append(to_pil(result))
+        out.write(
+            cv2.cvtColor(sr.upsample(to_numpy(image)), cv2.COLOR_RGB2BGR)
+        )
+    out.release()
 
-    res[0].save(
-        'out.gif',
-        save_all=True,
-        append_images=res[1::],
-        duration=100,
-        loop=1
-    )
+    os.system('ffmpeg -y -i output.avi out.mp4')
 
 
 if __name__ == "__main__":
