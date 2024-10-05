@@ -2,6 +2,7 @@ import argparse
 from genthing import Pipeline, live_display, batch
 from randomwalk import random_walk
 from sentiment import live_emotion
+from feedcontrol import live_feed
 from diffusers.utils import load_image
 from consts import ZOOM, COUNT, DEVICE, DIMS
 
@@ -27,6 +28,8 @@ def main():
             batch(p, image, args.count)
         case 'emotion':
             live_emotion(p, image)
+        case 'feed':
+            live_feed(p, image)
         case 'random-walk':
             random_walk(p, image, args.count)
         case _:

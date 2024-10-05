@@ -6,7 +6,7 @@ ZOOM = 1.025
 COUNT = 8
 # this really can't get much lower as the output images become a blurly mess
 # otherwise.
-STRENGTH = 0.5
+STRENGTH = 0.45
 
 BASE = [
     'detailed', 'hyperdetailed', 'photorealistic', 'clear', 'Fujifilm XT3',

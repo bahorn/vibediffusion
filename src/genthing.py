@@ -65,7 +65,7 @@ class Pipeline:
 
     def step(self, image, addition=[]):
         strength = self._strength
-        steps = math.floor(1 / strength)
+        steps = math.ceil(1 / strength)
 
         if self._count % REALIGN == 0 or len(self._prompt_cache) == 0:
             self._prompt_cache.append(self._caption(image)[0]['generated_text'])
