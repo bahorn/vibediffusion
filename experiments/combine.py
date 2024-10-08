@@ -1,8 +1,8 @@
 """
 An idea, but didn't really work.
 """
+import argparse
 import os
-import sys
 import math
 import cv2
 import numpy as np
@@ -17,7 +17,6 @@ WIDTH = 512
 HEIGHT = 512
 
 COUNT = 4
-FRAME_COUNT = 32
 
 OUT_DIM = 512
 
@@ -26,7 +25,7 @@ scale = int(OUT_DIM / int(WIDTH / math.sqrt(COUNT)))
 SIZE = int(WIDTH / math.sqrt(COUNT))
 GRID_SIZE = int(WIDTH / SIZE)
 
-STRENGTH = 0.3333
+STRENGTH = 0.25
 EXTRA = ", (anime)0.8, (studio ghibli)0.8, (green)0.8"
 
 
@@ -118,8 +117,25 @@ class MockScale:
         return image
 
 
+class LapSRNScale:
+    def __init__(self, scale):
+        sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        path = f"./models/LapSRN_x{scale}.pb"
+        sr.readModel(path)
+        sr.setModel("lapsrn", scale)
+
+        sr.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        sr.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL_FP16)
+        self._sr = sr
+
+    def upsample(self, image):
+        return self._sr.upsample(image)
+
+
 class Batcher:
-    def __init__(self):
+    def __init__(self, strength=STRENGTH, lora=None):
+        self._strength = strength
+
         vae = AutoencoderKL.from_pretrained(
             "madebyollin/sdxl-vae-fp16-fix",
             torch_dtype=torch.float16
@@ -134,6 +150,9 @@ class Batcher:
             add_watermarker=False
         )
 
+        if lora:
+            pipe.load_lora_weights(lora)
+
         pipe.safety_checker = \
             lambda images, clip_input: (images, [False] * len(images))
 
@@ -141,13 +160,12 @@ class Batcher:
 
     def step(self, prompt, image):
         # do an img2img step now.
-        strength = STRENGTH
 
         first = self.pipe(
             image=image,
             prompt=prompt,
-            num_inference_steps=math.ceil(1 / strength),
-            strength=strength,
+            num_inference_steps=math.ceil(1 / self._strength),
+            strength=self._strength,
             guidance_scale=0.0,
 
         ).images[0]
@@ -160,8 +178,15 @@ class Batcher:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('file')
+    parser.add_argument('--lora', default=None)
+    parser.add_argument('--frames', default=0, type=int)
+    parser.add_argument('--strength', default=STRENGTH, type=float)
+
+    args = parser.parse_args()
     # Read a batch of frames from
-    cap = cv2.VideoCapture(sys.argv[1])
+    cap = cv2.VideoCapture(args.file)
     fps = cap.get(cv2.CAP_PROP_FPS)
     print(fps)
     images = []
@@ -175,7 +200,7 @@ def main():
     annotater = Annotater()
 
     while cap.isOpened():
-        if count >= FRAME_COUNT:
+        if args.frames > 0 and count >= args.frames:
             break
 
         ret, frame = cap.read()
@@ -193,22 +218,13 @@ def main():
     frames = []
 
     print('applying filter')
-    b = Batcher()
+    b = Batcher(strength=args.strength, lora=args.lora)
     for prompt, image in to_process:
         images += b.step(prompt, image)
 
     print('upscaling')
 
-    sr = MockScale()
-
-    if scale > 1.0:
-        sr = cv2.dnn_superres.DnnSuperResImpl_create()
-        path = f"LapSRN_x{scale}.pb"
-        sr.readModel(path)
-        sr.setModel("lapsrn", scale)
-
-        sr.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-        sr.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL_FP16)
+    sr = LapSRNScale(scale) if scale > 1.0 else MockScale()
 
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter('output.avi', fourcc, fps, (OUT_DIM, OUT_DIM))
