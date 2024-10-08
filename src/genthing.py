@@ -22,7 +22,7 @@ def zoom_at(img, x, y, zoom):
 
 
 class Pipeline:
-    def __init__(self, zoom, device=DEVICE):
+    def __init__(self, zoom, lora=None, device=DEVICE):
         vae = AutoencoderKL.from_pretrained(
             "madebyollin/sdxl-vae-fp16-fix",
             torch_dtype=torch.float16
@@ -35,6 +35,9 @@ class Pipeline:
             use_safetensors=True,
             add_watermarker=False
         )
+        if lora:
+            pipe.load_lora_weights(lora)
+
         pipe.safety_checker = \
             lambda images, clip_input: (images, [False] * len(images))
         pipe = pipe.to(device)

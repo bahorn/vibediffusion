@@ -14,12 +14,13 @@ def main():
     parser.add_argument('--zoom', type=float, default=ZOOM)
     parser.add_argument('--count', type=int, default=COUNT)
     parser.add_argument('--device', default=DEVICE)
+    parser.add_argument('--lora', default=None)
 
     args = parser.parse_args()
 
     image = load_image(args.filename).resize(DIMS)
 
-    p = Pipeline(args.zoom, args.device)
+    p = Pipeline(args.zoom, args.lora, args.device)
 
     match args.type:
         case 'live':
